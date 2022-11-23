@@ -2,21 +2,31 @@ import bpy
 import bgl
 import gpu
 from gpu_extras.presets import draw_texture_2d
+import platform
 
 import json
 from dataclasses import dataclass
 
-try:
-    import SpoutGL
-except ModuleNotFoundError as ex:
-    print(f"Could not load SpoutGL: {ex}")
+if platform.system() == "Windows":
+    try:
+        import SpoutGL
+    except ModuleNotFoundError as ex:
+        print(f"Could not load SpoutGL: {ex}")
+
+if platform.system() == "Darwin":
+    print("Importing syphonpuuuyyy")  
+    try:
+        import syphonpy
+    except ModuleNotFoundError as ex:
+        print(f"Could not load Syphonpy: {ex}")
+
 
 import uuid
 
 #dictionary to store the references to
 db_frameHandle = {} # the draw handler 
 db_drawHandle = {} # the draw handler 
-db_spoutInstances = {} # the spout instance
+db_serverInstances = {} # the spout / syphon instance
 
 
 @dataclass
@@ -48,7 +58,7 @@ def frame_metadata(name, frame_metadata_buffer):
 
 
 # function for the draw handler to capture the texture from the perspective of the camera
-def texshare_capture(self, context, camera, object, space, region, scene, layer, offscreen, spoutSender, showPreview, frame_metadata_buffer):
+def texshare_capture(self, context, camera, object, space, region, scene, layer, offscreen, server, showPreview, frame_metadata_buffer):
     dWIDTH = camera.texshare.capture_width
     dHEIGHT = camera.texshare.capture_height
     applyCM = camera.texshare.applyColorManagmentSettings
@@ -75,16 +85,21 @@ def texshare_capture(self, context, camera, object, space, region, scene, layer,
 
     buffer =  frame_metadata_buffer.content
 
-    spoutSender.writeMemoryBuffer(camera.name, buffer, len(buffer))
+    if platform.system() == "Windows":
+        server.writeMemoryBuffer(camera.name, buffer, len(buffer))
 
-    spoutSender.sendTexture(offscreen.color_texture, bgl.GL_TEXTURE_2D, dWIDTH, dHEIGHT, True, 0)
-    spoutSender.setFrameSync(camera.name)
+        server.sendTexture(offscreen.color_texture, bgl.GL_TEXTURE_2D, dWIDTH, dHEIGHT, True, 0)
+        server.setFrameSync(camera.name)
+
+    if platform.system() == "Darwin":
+        server.publish_frame_texture(offscreen.color_texture, syphonpy.MakeRect(0,0,dWIDTH,dHEIGHT), syphonpy.MakeSize(dWIDTH,dHEIGHT), False)
+    
  
          
 # main function called when the settings 'enable' property is changed
 def texshare_main(self, context):
     global db_drawHandle
-    global db_spoutInstances
+    global db_serverInstances
     
     guivars = context.camera.texshare
     
@@ -99,11 +114,17 @@ def texshare_main(self, context):
         dWIDTH = guivars.capture_width
         dHEIGHT = guivars.capture_height
         
-        # create a new spout sender instance
-        spoutSender = SpoutGL.SpoutSender()
-        spoutSender.setSenderName(context.camera.name)       
+        # create a new spout / syphon sender instance
+        if platform.system() == "Windows":
+            server = SpoutGL.SpoutSender()
+            server.setSenderName(context.camera.name)       
         
-        spoutSender.createMemoryBuffer(context.camera.name, 1024)
+            server.createMemoryBuffer(context.camera.name, 1024)
+
+        if platform.system() == "Darwin":
+            server = syphonpy.SyphonServer(context.camera.name)
+    
+        
         # create a off screen renderer
         offscreen = gpu.types.GPUOffScreen(dWIDTH, dHEIGHT)
 
@@ -133,7 +154,7 @@ def texshare_main(self, context):
         frame_metadata_buffer = FrameMetDataBuffer("test")
 
         # collect all the arguments to pass to the draw handler
-        args = (self, context, context.camera, context.object, mySpace, myRegion, myScene, myLayer, offscreen, spoutSender, guivars.preview, frame_metadata_buffer)
+        args = (self, context, context.camera, context.object, mySpace, myRegion, myScene, myLayer, offscreen, server, guivars.preview, frame_metadata_buffer)
         
         frameHandler = frame_metadata(context.camera.name, frame_metadata_buffer)
         bpy.app.handlers.depsgraph_update_post.append(frameHandler)
@@ -145,13 +166,18 @@ def texshare_main(self, context):
         # store the references inside the db-dicts
         db_frameHandle[dbID] = frameHandler
         db_drawHandle[dbID] = drawhandle
-        db_spoutInstances[dbID] = spoutSender
+        db_serverInstances[dbID] = server
         
     # if streaming has been disabled and my ID is still stored in the db
     if context.camera.texshare.enable == 0 and dbID in db_drawHandle:
         bpy.app.handlers.depsgraph_update_post.remove(db_frameHandle[dbID])
         bpy.types.SpaceView3D.draw_handler_remove(db_drawHandle[dbID], 'WINDOW')
-        db_spoutInstances[dbID].releaseSender()
+        if platform.system() == "Windows":
+            db_serverInstances[dbID].releaseSender()
+
+        if platform.system() == "Darwin":
+            db_serverInstances[dbID].stop()
+        
         #removing my ID
         db_drawHandle.pop(dbID, None)
         dbID == "off"

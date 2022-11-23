@@ -12,16 +12,16 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name" : "Spout",
-    "author" : "Martin Froehlich, Florian Bruggisser",
-    "description" : "Streaming Spout from Blender",
+    "name" : "TextureSharing",
+    "author" : "Martin Froehlich, Florian Bruggisser, Eduard Frigola",
+    "description" : "Streaming Spout / Syphon from Blender",
     "blender" : (3, 0, 0),
-    "version" : (3, 0, 0),
+    "version" : (0, 0, 1),
     "location" : "Properties > Camera > Camera data",
     "warning" : "Experimental",
     "category" : "Render", 
-    "wiki_url" : "https://github.com/maybites/blender.script.spout",
-    "tracker_url" : "https://github.com/maybites/blender.script.spout/issues",
+    "wiki_url" : "https://github.com/eduardfrigola/blender.texturesharing",
+    "tracker_url" : "https://github.com/eduardfrigola/blender.texturesharing/issues",
     "support" : "COMMUNITY"
 }
 
